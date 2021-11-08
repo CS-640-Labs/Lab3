@@ -6,6 +6,13 @@ import edu.wisc.cs.sdn.vnet.Iface;
 
 import net.floodlightcontroller.packet.Ethernet;
 import net.floodlightcontroller.packet.IPv4;
+import net.floodlightcontroller.packet.ARP;
+import net.floodlightcontroller.packet.ICMP;
+import net.floodlightcontroller.packet.Data;
+
+
+import java.nio.ByteBuffer;
+
 
 /**
  * @author Aaron Gember-Jacobson and Anubhavnidhi Abhashkumar
@@ -99,10 +106,51 @@ public class Router extends Device
 	
 	private void handleIpPacket(Ethernet etherPacket, Iface inIface)
 	{
-		// Make sure it's an IP packet
-		if (etherPacket.getEtherType() != Ethernet.TYPE_IPv4)
-		{ return; }
-		
+		// if an ARP packet
+		if(etherPacket.getEtherType() == Ethernet.TYPE_ARP) {
+			// Get ARP header
+			ARP arpPacket = (ARP)etherPacket.getPayload();
+			// if an ARP packet is an ARP request
+			if(arpPacket.getOpCode() == ARP.OP_REQUEST) {
+				// get target ip protocol
+				int targetIp = ByteBuffer.wrap(arpPacket.getTargetProtocolAddress()).getInt();
+
+				// if target ip is equal to interfaced packet was received
+				if(targetIp == inIface.getIpAddress()) {
+					// create ethernet header
+					Ethernet etherHeader = new Ethernet();
+					etherHeader.setEtherType(Ethernet.TYPE_ARP);
+					etherHeader.setSourceMACAddress(inIface.getMacAddress().toBytes());
+					etherHeader.setDestinationMACAddress(etherPacket.getSourceMACAddress());
+
+					// create ARP header
+					ARP arpHeader = new ARP();
+					arpHeader.setHardwareType(ARP.HW_TYPE_ETHERNET);
+					arpHeader.setProtocolType(ARP.PROTO_TYPE_IP);
+					arpHeader.setHardwareAddressLength((byte) Ethernet.DATALAYER_ADDRESS_LENGTH);
+					arpHeader.setProtocolAddressLength((byte) 4);
+					arpHeader.setOpCode(ARP.OP_REPLY);
+					arpHeader.setSenderHardwareAddress(inIface.getMacAddress().toBytes());
+					arpHeader.setSenderProtocolAddress(inIface.getIpAddress());
+					arpHeader.setTargetHardwareAddress(arpPacket.getSenderHardwareAddress());
+					arpHeader.setTargetProtocolAddress(arpPacket.getSenderProtocolAddress());
+
+					// link headers
+					ICMP icmp = new ICMP(); // TODO fix this
+					Data data = new Data();
+					etherHeader.setPayload(arpPacket);
+					arpHeader.setPayload(icmp);
+					icmp.setPayload(data);
+
+					// TODO forward packet
+				}
+			}
+
+		}
+
+		// if not an IP packet then drop
+		else if (etherPacket.getEtherType() != Ethernet.TYPE_IPv4) { return; }
+
 		// Get IP header
 		IPv4 ipPacket = (IPv4)etherPacket.getPayload();
         System.out.println("Handle IP packet");
