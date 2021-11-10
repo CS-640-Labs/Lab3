@@ -40,7 +40,7 @@ public class Router extends Device
 		super(host,logfile);
 		this.routeTable = new RouteTable();
 		this.arpCache = new ArpCache();
-		this.arpQueueMap = new ConcurrentHashMap<>() {
+		this.arpQueueMap = new ConcurrentHashMap<Integer, ArpQueue>() {
 		};
 	}
 	
