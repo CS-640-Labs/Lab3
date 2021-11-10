@@ -4,6 +4,8 @@ import edu.wisc.cs.sdn.vnet.Iface;
 import net.floodlightcontroller.packet.Ethernet;
 import net.floodlightcontroller.packet.IPv4;
 
+import net.floodlightcontroller.packet.ARP;
+
 import java.util.LinkedList;
 import java.util.Queue;
 
@@ -28,22 +30,31 @@ public class ArpQueue implements Runnable
 
 		timeoutThread = new Thread(this);
 		timeoutThread.start();
+
 	}
 
 	public void insert(Ethernet etherPacket) {
 		this.packets.add(etherPacket);
+
 	}
 
 	public void dequeuePackets(byte[] destinationMAC, Iface outIface) {
 		timeoutThread.interrupt();
 		while(packets.size() > 0) {
 			Ethernet etherPacket = packets.poll();
+			System.out.println("Send packet: "
+					+ IPv4.fromIPv4Address(((IPv4) etherPacket.getPayload()).getSourceAddress())
+					+ " to "
+					+ IPv4.fromIPv4Address(((IPv4) etherPacket.getPayload()).getDestinationAddress()));
+
 			etherPacket.setDestinationMACAddress(destinationMAC);
 			router.sendPacket(etherPacket, outIface);
 		}
 	}
 
 	private void broadcastPackets() {
+		System.out.println("Broadcast arp packet for: "
+				+ IPv4.fromIPv4Address(IPv4.toIPv4Address(((ARP) arpRequest.getPayload()).getTargetProtocolAddress())));
 		for(Iface outIface : router.getInterfaces().values()) {
 			router.sendPacket(arpRequest, outIface);
 		}
@@ -65,7 +76,7 @@ public class ArpQueue implements Runnable
 	public void run() {
 		// timout after 3 total sends (including the init)
 		int timesSent = 0;
-		while (timesSent <= 3) {
+		while (timesSent < 3) {
 			// send packet
 			broadcastPackets();
 			timesSent ++;
@@ -78,6 +89,7 @@ public class ArpQueue implements Runnable
 		}
 
 		// if here the no reply was received -> drop queued packets
-		dropPackets();
+		System.out.println("Drop packets");
+		//dropPackets();
 	}
 }
