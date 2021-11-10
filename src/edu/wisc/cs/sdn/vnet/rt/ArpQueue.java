@@ -34,6 +34,7 @@ public class ArpQueue implements Runnable
 	}
 
 	public void insert(Ethernet etherPacket) {
+		System.out.println("inserted: " + IPv4.fromIPv4Address(((IPv4) etherPacket.getPayload()).getDestinationAddress()) + " with length=" + this.packets.size());
 		this.packets.add(etherPacket);
 
 	}
@@ -63,9 +64,11 @@ public class ArpQueue implements Runnable
 
 
 	public void dropPackets() {
+		System.out.println("Dropping packets");
 		while(packets.size() > 0) {
 			Ethernet etherPacket = packets.poll();
 			router.generateICMP((IPv4) etherPacket.getPayload(), this.inIface,3,1);
+			System.out.println("Dropped packet");
 		}
 	}
 
@@ -85,11 +88,10 @@ public class ArpQueue implements Runnable
 			try
 			{ Thread.sleep(1000); }
 			catch (InterruptedException e)
-			{ break; }
+			{ return; }
 		}
 
 		// if here the no reply was received -> drop queued packets
-		System.out.println("Drop packets");
-		//dropPackets();
+		dropPackets();
 	}
 }

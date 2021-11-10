@@ -143,7 +143,7 @@ public class RouteTable
 			}
 			
 			// Add an entry to the route table
-			this.insert(dstIp, gwIp, maskIp, iface);
+			this.insert(dstIp, gwIp, maskIp, iface, 0);
 		}
 	
 		// Close the file
@@ -159,9 +159,9 @@ public class RouteTable
 	 * @param iface router interface out which to send packets to reach the 
 	 *        destination or gateway
 	 */
-	public void insert(int dstIp, int gwIp, int maskIp, Iface iface)
+	public void insert(int dstIp, int gwIp, int maskIp, Iface iface, int metric)
 	{
-		RouteEntry entry = new RouteEntry(dstIp, gwIp, maskIp, iface);
+		RouteEntry entry = new RouteEntry(dstIp, gwIp, maskIp, iface, metric);
         synchronized(this.entries)
         { 
             this.entries.add(entry);
@@ -214,7 +214,7 @@ public class RouteTable
      * @param maskIp subnet mask of the entry to find
      * @return a matching entry if one was found, otherwise null
 	 */
-    private RouteEntry find(int dstIp, int maskIp)
+    public RouteEntry find(int dstIp, int maskIp)
     {
         synchronized(this.entries)
         {
@@ -227,6 +227,10 @@ public class RouteTable
         }
         return null;
     }
+
+    public List<RouteEntry> getEntries() {
+    	return this.entries;
+		}
 	
 	public String toString()
 	{

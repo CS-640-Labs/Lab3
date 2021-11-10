@@ -21,6 +21,10 @@ public class RouteEntry
 	/** Router interface out which packets should be sent to reach
 	 * the destination or gateway */
 	private Iface iface;
+
+	private int metric;
+
+	private long timestamp;
 	
 	/**
 	 * Create a new route table entry.
@@ -31,12 +35,22 @@ public class RouteEntry
 	 *        be sent to reach the destination or gateway
 	 */
 	public RouteEntry(int destinationAddress, int gatewayAddress, 
-			int maskAddress, Iface iface)
+			int maskAddress, Iface iface, int metric)
 	{
 		this.destinationAddress = destinationAddress;
 		this.gatewayAddress = gatewayAddress;
 		this.maskAddress = maskAddress;
 		this.iface = iface;
+		this.metric = metric;
+		this.timestamp = System.currentTimeMillis();
+	}
+
+	public void resetTimestamp() {
+		this.timestamp = System.currentTimeMillis();
+	}
+
+	public long getTimestamp() {
+		return this.timestamp;
 	}
 	
 	/**
@@ -69,6 +83,14 @@ public class RouteEntry
 
     public void setInterface(Iface iface)
     { this.iface = iface; }
+
+	public int getMetric() {
+		return metric;
+	}
+
+	public void setMetric(int metric) {
+		this.metric = metric;
+	}
 	
 	public String toString()
 	{
