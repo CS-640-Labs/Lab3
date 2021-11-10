@@ -229,39 +229,42 @@ public class Router extends Device
 		ipPacket.setTtl((byte)(ipPacket.getTtl()+1));
 		ether.setEtherType(Ethernet.TYPE_IPv4);
 		ether.setSourceMACAddress(inIface.getMacAddress().toString()); //perhaps wrong
-		RouteEntry bestMatch = this.routeTable.lookup(ipPacket.getSourceAddress());
-		if(bestMatch!=null){
-			int nextHop = bestMatch.getGatewayAddress();
-			if (0 == nextHop)
-			{ nextHop = ipPacket.getSourceAddress(); }
-			ArpEntry arp_entry = this.arpCache.lookup(nextHop);
-			if(arp_entry==null){
-				System.out.println("arp entry is null, could not find: " + IPv4.fromIPv4Address(nextHop));
-			}
-			ether.setDestinationMACAddress(arp_entry.getMac().toString());
-			ip.setTtl((byte)(64));
-			ip.setProtocol((byte)(IPv4.PROTOCOL_ICMP));
+		ip.setTtl((byte)(64));
+		ip.setProtocol((byte)(IPv4.PROTOCOL_ICMP));
 
-			ip.setSourceAddress(inIface.getIpAddress());
-			if((icmpType== 0) && (icmpCode==0)){
-				ip.setSourceAddress(ipPacket.getDestinationAddress());
-			}
-			ip.setDestinationAddress(ipPacket.getSourceAddress());
-			icmp.setIcmpType((byte)(icmpType));
-			icmp.setIcmpCode((byte)(icmpCode));
-			ip.resetChecksum();
-			byte[] data_ip = ipPacket.serialize();
-			int ip_header_length = ipPacket.getHeaderLength()*4;
-			byte[] bytes1 = new byte[4+ip_header_length+8];
-			for(int i=0;i<ip_header_length+8;i++){
-				bytes1[4+i]=data_ip[i];
-			}
-			data.setData(bytes1);
-			icmp.setPayload(data);
-			ip.setPayload(icmp);
-			ether.setPayload(ip);
-			this.sendPacket(ether, inIface);
+		ip.setSourceAddress(inIface.getIpAddress());
+		if((icmpType== 0) && (icmpCode==0)){
+			ip.setSourceAddress(ipPacket.getDestinationAddress());
 		}
+		ip.setDestinationAddress(ipPacket.getSourceAddress());
+		icmp.setIcmpType((byte)(icmpType));
+		icmp.setIcmpCode((byte)(icmpCode));
+		ip.resetChecksum();
+		byte[] data_ip = ipPacket.serialize();
+		int ip_header_length = ipPacket.getHeaderLength()*4;
+		byte[] bytes1 = new byte[4+ip_header_length+8];
+		for(int i=0;i<ip_header_length+8;i++){
+			bytes1[4+i]=data_ip[i];
+		}
+		data.setData(bytes1);
+		icmp.setPayload(data);
+		ip.setPayload(icmp);
+		ether.setPayload(ip);
+		RouteEntry bestMatch = this.routeTable.lookup(ipPacket.getSourceAddress());
+		// if(bestMatch!=null){
+		int nextHop = bestMatch.getGatewayAddress();
+		if (0 == nextHop)
+		{ nextHop = ipPacket.getSourceAddress(); }
+		ArpEntry arp_entry = this.arpCache.lookup(nextHop);
+		if(arp_entry==null){
+			System.out.println("arp entry is null, could not find: " + IPv4.fromIPv4Address(nextHop));
+			sendArpRequest(ether,inIface);
+		}
+		else{
+		ether.setDestinationMACAddress(arp_entry.getMac().toString());
+		this.sendPacket(ether, inIface);
+		}
+		// }
 	}
 
 	private void forwardIpPacket(Ethernet etherPacket, Iface inIface)
