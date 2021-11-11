@@ -259,7 +259,6 @@ public class Router extends Device
 			sendSolicitedRipResponse(ipPacket.getDestinationAddress(), etherPacket.getDestinationMACAddress(), inIface);
 			return;
 		}
-		System.out.println("the source Ip address is "+ipPacket.getSourceAddress());
 
 		for(RIPv2Entry ripEntry : table.getEntries()) {
 			int destinationAddress = ripEntry.getAddress();
@@ -269,12 +268,10 @@ public class Router extends Device
 
 			if(routeEntry == null) {
 				this.routeTable.insert(destinationAddress, gatewayAddress, maskAddress, inIface, ripEntry.getMetric() + 1);
-				//sendSolicitedRipResponse(ipPacket.getDestinationAddress(), etherPacket.getDestinationMACAddress(), inIface);
 			}
 			else if (routeEntry.getMetric() > ripEntry.getMetric()){
 				this.routeTable.remove(routeEntry.getDestinationAddress(), routeEntry.getMaskAddress());
 				this.routeTable.insert(destinationAddress, gatewayAddress, maskAddress, inIface, ripEntry.getMetric() + 1);
-				//sendSolicitedRipResponse(ipPacket.getDestinationAddress(), etherPacket.getDestinationMACAddress(), inIface);
 			}
 			else {
 				routeEntry.resetTimestamp(); // TODO done by gage
@@ -295,8 +292,10 @@ public class Router extends Device
 
 		// if an ARP packet is an ARP request
 		if(arpPacket.getOpCode() == ARP.OP_REQUEST) {
-			System.out.println("ARP Request: " + IPv4.fromIPv4Address(IPv4.toIPv4Address(arpPacket.getSenderProtocolAddress())));
+			System.out.println("Received ARP Request from: " + IPv4.fromIPv4Address(IPv4.toIPv4Address(arpPacket.getSenderProtocolAddress())));
 			// if target ip is equal to interfaced packet was received
+			System.out.println(IPv4.fromIPv4Address(targetIp) + " == " + IPv4.fromIPv4Address(inIface.getIpAddress()));
+
 			if(targetIp == inIface.getIpAddress()) {
 
 				// create ethernet header
@@ -321,12 +320,14 @@ public class Router extends Device
 				etherHeader.setPayload(arpHeader);
 
 				// send packet back
+				System.out.println("Sent ARP Reply");
 				this.sendPacket(etherHeader, inIface);
 			}
+
 		}
 		// if received an arp reply
 		else if(arpPacket.getOpCode() == ARP.OP_REPLY) {
-			System.out.println("ARP Reply: " + IPv4.fromIPv4Address(IPv4.toIPv4Address(arpPacket.getSenderProtocolAddress())));
+			System.out.println("Received ARP Reply: " + IPv4.fromIPv4Address(IPv4.toIPv4Address(arpPacket.getSenderProtocolAddress())));
 			// add to arp cache
 			arpCache.insert(MACAddress.valueOf(arpPacket.getSenderHardwareAddress()), IPv4.toIPv4Address(arpPacket.getSenderProtocolAddress()));
 			ArpQueue arpQueue = arpQueueMap.get(IPv4.toIPv4Address(arpPacket.getSenderProtocolAddress()));
@@ -425,7 +426,7 @@ public class Router extends Device
 		ArpEntry arp_entry = this.arpCache.lookup(nextHop);
 		if(arp_entry==null){
 			System.out.println("arp entry is null, could not find: " + IPv4.fromIPv4Address(nextHop));
-			sendArpRequest(ether,inIface);
+			sendArpRequest(ether, bestMatch.getInterface(), inIface, nextHop);
 		}
 		else{
 			System.out.println("Found in arp cache: " + IPv4.fromIPv4Address(nextHop));
@@ -470,7 +471,7 @@ public class Router extends Device
 		ArpEntry arpEntry = this.arpCache.lookup(nextHop);
 
 		if (null == arpEntry) {
-			sendArpRequest(etherPacket, inIface);
+			sendArpRequest(etherPacket, outIface, inIface, nextHop);
 			return;
 		}
 		etherPacket.setDestinationMACAddress(arpEntry.getMac().toBytes());
@@ -479,12 +480,12 @@ public class Router extends Device
 		this.sendPacket(etherPacket, outIface);
 	}
 
-	void sendArpRequest(Ethernet etherPacket, Iface inIface) {
+	void sendArpRequest(Ethernet etherPacket, Iface outIface, Iface inIface, int nextHop) {
 		// Get IP header
 		IPv4 ipPacket = (IPv4)etherPacket.getPayload();
 
 		// if ip queue doesnt exist -> create queue and start timout
-		if(!arpQueueMap.containsKey(ipPacket.getDestinationAddress())) {
+		if(!arpQueueMap.containsKey(nextHop)) {
 			// create ethernet header
 			Ethernet etherHeader = new Ethernet();
 			etherHeader.setEtherType(Ethernet.TYPE_ARP);
@@ -499,19 +500,18 @@ public class Router extends Device
 			arpHeader.setProtocolAddressLength((byte) 4);
 			arpHeader.setOpCode(ARP.OP_REQUEST);
 			arpHeader.setSenderHardwareAddress(inIface.getMacAddress().toBytes());
-			arpHeader.setSenderProtocolAddress(inIface.getIpAddress());
-			byte [] b = new byte[10];
-			arpHeader.setTargetHardwareAddress(b);
-			arpHeader.setTargetProtocolAddress(ipPacket.getDestinationAddress());
+			arpHeader.setSenderProtocolAddress(outIface.getIpAddress());
+			arpHeader.setTargetHardwareAddress(MACAddress.valueOf(0).toBytes());
+			arpHeader.setTargetProtocolAddress(nextHop);
 
 			// link headers
 			etherHeader.setPayload(arpHeader);
-			arpQueueMap.put(ipPacket.getDestinationAddress(), new ArpQueue(etherHeader, this, inIface));
+			arpQueueMap.put(nextHop, new ArpQueue(etherHeader, this, inIface));
 			System.out.println("Create new queue");
 		}
 
 		// add packet to queue
-		arpQueueMap.get(ipPacket.getDestinationAddress()).insert(etherPacket);
+		arpQueueMap.get(nextHop).insert(etherPacket);
 		System.out.println("Add to queue");
 	}
 }
