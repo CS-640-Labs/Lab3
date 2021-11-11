@@ -76,7 +76,7 @@ public class Router extends Device
 		}
 
 		// send init request
-		createRipv2();
+		broadcastRipTable(-1, null);
 
 		System.out.println(routeTable);
 
@@ -84,13 +84,14 @@ public class Router extends Device
 		// send unsolicited response
 		new Thread(() -> {
 			// wait one second
+			System.out.println("send out rip requests");
 			try
-			{ Thread.sleep(1000); }
+			{ Thread.sleep(10000); }
 			catch (InterruptedException e)
 			{ return; }
 
-			createRipv2();
-		});
+			broadcastRipTable(-1, null);
+		}).start();
 
 		// start thread
 		// timout
@@ -108,10 +109,10 @@ public class Router extends Device
 					}
 				}
 			}
-		});
+		}).start();
 	}
 
-	private void createRipv2() {
+	private void broadcastRipTable(int destIp, byte[] destMac) {
 		RIPv2 table = new RIPv2();
 		for(RouteEntry entry : this.routeTable.getEntries()) {
 			RIPv2Entry tableEntry = new RIPv2Entry(entry.getDestinationAddress(), entry.getMaskAddress(), entry.getMetric());
@@ -122,10 +123,21 @@ public class Router extends Device
 		// create headers
 		Ethernet etherHeader = new Ethernet();
 		etherHeader.setEtherType(Ethernet.TYPE_IPv4);
-		etherHeader.setDestinationMACAddress("FF:FF:FF:FF:FF:FF");
+
+		if(destMac == null){
+			etherHeader.setDestinationMACAddress("FF:FF:FF:FF:FF:FF");
+		}
+		else {
+			etherHeader.setDestinationMACAddress(destMac);
+		}
 
 		IPv4 ipHeader = new IPv4();
-		ipHeader.setDestinationAddress("224.0.0.9");
+		if(destIp == -1){
+			ipHeader.setDestinationAddress("224.0.0.9");
+		}
+		else {
+			ipHeader.setDestinationAddress(destIp);
+		}
 		ipHeader.setProtocol(IPv4.PROTOCOL_UDP);
 
 		UDP udpHeader = new UDP();
@@ -139,8 +151,7 @@ public class Router extends Device
 
 		// send tables to all ports
 		for(Iface iface :  this.getInterfaces().values()) {
-			System.out.println(etherHeader);
-			System.out.println(iface);
+			etherHeader.setSourceMACAddress(iface.getMacAddress().toString());
 			this.sendPacket(etherHeader, iface);
 		}
 	}
@@ -223,15 +234,18 @@ public class Router extends Device
 
 			if(routeEntry == null) {
 				this.routeTable.insert(destinationAddress, gatewayAddress, maskAddress, inIface, ripEntry.getMetric() + 1);
+				broadcastRipTable(ipPacket.getSourceAddress(), etherPacket.getSourceMACAddress());
 			}
 			else if (routeEntry.getMetric() < ripEntry.getMetric()){
 				this.routeTable.remove(routeEntry.getDestinationAddress(), routeEntry.getMaskAddress());
 				this.routeTable.insert(destinationAddress, gatewayAddress, maskAddress, inIface, ripEntry.getMetric() + 1);
+				broadcastRipTable(ipPacket.getSourceAddress(), etherPacket.getSourceMACAddress());
 			}
 			else {
 				routeEntry.resetTimestamp(); // TODO done by gage
 			}
 		}
+		System.out.println(this.routeTable);
 	}
 
 
