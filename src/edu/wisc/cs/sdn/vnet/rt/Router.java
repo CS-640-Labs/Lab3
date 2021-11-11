@@ -76,7 +76,7 @@ public class Router extends Device
 		}
 
 		// send init request
-		sendRipRequest(RIPv2.COMMAND_REQUEST);
+		sendRip(RIPv2.COMMAND_REQUEST);
 
 		System.out.println(routeTable);
 
@@ -90,7 +90,7 @@ public class Router extends Device
 			catch (InterruptedException e)
 			{ return; }
 
-			sendRipRequest(RIPv2.COMMAND_RESPONSE);
+			sendRip(RIPv2.COMMAND_RESPONSE);
 		}).start();
 
 		// start thread
@@ -112,7 +112,12 @@ public class Router extends Device
 		}).start();
 	}
 
-	private void sendRipRequest(byte command) {
+	private void sendSolicitedRipResponse(int destIp, byte[] destMac) {
+		sendRip();
+	}
+
+
+	private void sendRip(byte command, int destIp, byte[] destMac, Iface outIface) {
 		RIPv2 table = new RIPv2();
 		for(RouteEntry entry : this.routeTable.getEntries()) {
 			RIPv2Entry tableEntry = new RIPv2Entry(entry.getDestinationAddress(), entry.getMaskAddress(), entry.getMetric());
@@ -216,6 +221,11 @@ public class Router extends Device
 		UDP udpPacket = (UDP) ipPacket.getPayload();
 		RIPv2 table = (RIPv2) udpPacket.getPayload();
 
+		if(table.getCommand() == RIPv2.COMMAND_REQUEST) {
+			sendRip(RIPv2.COMMAND_RESPONSE);
+			return;
+		}
+
 		for(RIPv2Entry ripEntry : table.getEntries()) {
 			int destinationAddress = ripEntry.getAddress();
 			int gatewayAddress = ripEntry.getNextHopAddress();
@@ -224,12 +234,12 @@ public class Router extends Device
 
 			if(routeEntry == null) {
 				this.routeTable.insert(destinationAddress, gatewayAddress, maskAddress, inIface, ripEntry.getMetric() + 1);
-				sendRipRequest(ipPacket.getSourceAddress(), etherPacket.getSourceMACAddress());
+				sendRip(RIPv2.COMMAND_RESPONSE);
 			}
 			else if (routeEntry.getMetric() < ripEntry.getMetric()){
 				this.routeTable.remove(routeEntry.getDestinationAddress(), routeEntry.getMaskAddress());
 				this.routeTable.insert(destinationAddress, gatewayAddress, maskAddress, inIface, ripEntry.getMetric() + 1);
-				sendRipRequest(ipPacket.getSourceAddress(), etherPacket.getSourceMACAddress());
+				sendRip(RIPv2.COMMAND_RESPONSE);
 			}
 			else {
 				routeEntry.resetTimestamp(); // TODO done by gage
