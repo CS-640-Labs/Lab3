@@ -292,10 +292,7 @@ public class Router extends Device
 
 		// if an ARP packet is an ARP request
 		if(arpPacket.getOpCode() == ARP.OP_REQUEST) {
-			System.out.println("Received ARP Request from: " + IPv4.fromIPv4Address(IPv4.toIPv4Address(arpPacket.getSenderProtocolAddress())));
 			// if target ip is equal to interfaced packet was received
-			System.out.println(IPv4.fromIPv4Address(targetIp) + " == " + IPv4.fromIPv4Address(inIface.getIpAddress()));
-
 			if(targetIp == inIface.getIpAddress()) {
 
 				// create ethernet header
@@ -320,14 +317,12 @@ public class Router extends Device
 				etherHeader.setPayload(arpHeader);
 
 				// send packet back
-				System.out.println("Sent ARP Reply");
 				this.sendPacket(etherHeader, inIface);
 			}
 
 		}
 		// if received an arp reply
 		else if(arpPacket.getOpCode() == ARP.OP_REPLY) {
-			System.out.println("Received ARP Reply: " + IPv4.fromIPv4Address(IPv4.toIPv4Address(arpPacket.getSenderProtocolAddress())));
 			// add to arp cache
 			arpCache.insert(MACAddress.valueOf(arpPacket.getSenderHardwareAddress()), IPv4.toIPv4Address(arpPacket.getSenderProtocolAddress()));
 			ArpQueue arpQueue = arpQueueMap.get(IPv4.toIPv4Address(arpPacket.getSenderProtocolAddress()));
@@ -425,11 +420,9 @@ public class Router extends Device
 		{ nextHop = ipPacket.getSourceAddress(); }
 		ArpEntry arp_entry = this.arpCache.lookup(nextHop);
 		if(arp_entry==null){
-			System.out.println("arp entry is null, could not find: " + IPv4.fromIPv4Address(nextHop));
 			sendArpRequest(ether, bestMatch.getInterface(), inIface, nextHop);
 		}
 		else{
-			System.out.println("Found in arp cache: " + IPv4.fromIPv4Address(nextHop));
 			ether.setDestinationMACAddress(arp_entry.getMac().toString());
 			this.sendPacket(ether, inIface);
 		}
@@ -476,7 +469,6 @@ public class Router extends Device
 		}
 		etherPacket.setDestinationMACAddress(arpEntry.getMac().toBytes());
 
-		System.out.println("Forwarding packet");
 		this.sendPacket(etherPacket, outIface);
 	}
 
@@ -507,11 +499,9 @@ public class Router extends Device
 			// link headers
 			etherHeader.setPayload(arpHeader);
 			arpQueueMap.put(nextHop, new ArpQueue(etherHeader, this, inIface));
-			System.out.println("Create new queue");
 		}
 
 		// add packet to queue
 		arpQueueMap.get(nextHop).insert(etherPacket);
-		System.out.println("Add to queue");
 	}
 }

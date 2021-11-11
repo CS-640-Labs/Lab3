@@ -35,7 +35,6 @@ public class ArpQueue implements Runnable
 	}
 
 	public void insert(Ethernet etherPacket) {
-		System.out.println("inserted: " + IPv4.fromIPv4Address(((IPv4) etherPacket.getPayload()).getDestinationAddress()) + " with length=" + this.packets.size());
 		this.packets.add(etherPacket);
 
 	}
@@ -44,19 +43,12 @@ public class ArpQueue implements Runnable
 		timeoutThread.interrupt();
 		while(packets.size() > 0) {
 			Ethernet etherPacket = packets.poll();
-			System.out.println("Send packet: "
-					+ IPv4.fromIPv4Address(((IPv4) etherPacket.getPayload()).getSourceAddress())
-					+ " to "
-					+ IPv4.fromIPv4Address(((IPv4) etherPacket.getPayload()).getDestinationAddress()));
-
 			etherPacket.setDestinationMACAddress(destinationMAC);
 			router.sendPacket(etherPacket, outIface);
 		}
 	}
 
 	private void broadcastPackets() {
-		System.out.println("Broadcast arp packet for: "
-				+ IPv4.fromIPv4Address(IPv4.toIPv4Address(((ARP) arpRequest.getPayload()).getTargetProtocolAddress())));
 		for(Iface outIface : router.getInterfaces().values()) {
 			router.sendPacket(arpRequest, outIface);
 		}
@@ -65,11 +57,9 @@ public class ArpQueue implements Runnable
 
 
 	public void dropPackets() {
-		System.out.println("Dropping packets");
 		while(packets.size() > 0) {
 			Ethernet etherPacket = packets.poll();
 			router.generateICMP((IPv4) etherPacket.getPayload(), this.inIface,3,1);
-			System.out.println("Dropped packet");
 		}
 	}
 
