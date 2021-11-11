@@ -247,7 +247,7 @@ public class Router extends Device
 		RIPv2 table = (RIPv2) udpPacket.getPayload();
 
 		if(table.getCommand() == RIPv2.COMMAND_REQUEST) {
-			sendRip(RIPv2.COMMAND_RESPONSE);
+			sendSolicitedRipResponse(ipPacket.getDestinationAddress(), etherPacket.getDestinationMACAddress(), inIface);
 			return;
 		}
 
@@ -259,12 +259,12 @@ public class Router extends Device
 
 			if(routeEntry == null) {
 				this.routeTable.insert(destinationAddress, gatewayAddress, maskAddress, inIface, ripEntry.getMetric() + 1);
-				sendRip(RIPv2.COMMAND_RESPONSE);
+				//sendSolicitedRipResponse(ipPacket.getDestinationAddress(), etherPacket.getDestinationMACAddress(), inIface);
 			}
 			else if (routeEntry.getMetric() < ripEntry.getMetric()){
 				this.routeTable.remove(routeEntry.getDestinationAddress(), routeEntry.getMaskAddress());
 				this.routeTable.insert(destinationAddress, gatewayAddress, maskAddress, inIface, ripEntry.getMetric() + 1);
-				sendRip(RIPv2.COMMAND_RESPONSE);
+				//sendSolicitedRipResponse(ipPacket.getDestinationAddress(), etherPacket.getDestinationMACAddress(), inIface);
 			}
 			else {
 				routeEntry.resetTimestamp(); // TODO done by gage
