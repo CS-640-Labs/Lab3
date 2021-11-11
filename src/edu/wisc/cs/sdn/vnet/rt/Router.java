@@ -126,13 +126,7 @@ public class Router extends Device
 
 
 	private void sendRip(byte command, int destIp, byte[] destMac, Iface outIface) {
-		RIPv2 table = new RIPv2();
-		for(RouteEntry entry : this.routeTable.getEntries()) {
-			RIPv2Entry tableEntry = new RIPv2Entry(entry.getDestinationAddress(), entry.getMaskAddress(), entry.getMetric());
-			tableEntry.setNextHopAddress(entry.getInterface().getIpAddress()); // TODO maybe
-			table.addEntry(tableEntry);
-		}
-		table.setCommand(command);
+
 
 		// create headers
 		Ethernet etherHeader = new Ethernet();
@@ -161,16 +155,31 @@ public class Router extends Device
 		// link
 		etherHeader.setPayload(ipHeader);
 		ipHeader.setPayload(udpHeader);
-		udpHeader.setPayload(table);
+		
 
 		if(outIface == null) {
 			// send tables to all ports
 			for(Iface iface :  this.getInterfaces().values()) {
+				RIPv2 table = new RIPv2();
+				table.setCommand(command);
+				for(RouteEntry entry : this.routeTable.getEntries()) {
+					RIPv2Entry tableEntry = new RIPv2Entry(entry.getDestinationAddress(), entry.getMaskAddress(), entry.getMetric());
+					tableEntry.setNextHopAddress(iface.getIpAddress()); // TODO maybe
+					table.addEntry(tableEntry);
+				}
+				udpHeader.setPayload(table);
 				etherHeader.setSourceMACAddress(iface.getMacAddress().toString());
 				this.sendPacket(etherHeader, iface);
 			}
 		}
 		else {
+			RIPv2 table = new RIPv2();
+			for(RouteEntry entry : this.routeTable.getEntries()) {
+				RIPv2Entry tableEntry = new RIPv2Entry(entry.getDestinationAddress(), entry.getMaskAddress(), entry.getMetric());
+				tableEntry.setNextHopAddress(outIface.getIpAddress()); // TODO maybe
+				table.addEntry(tableEntry);
+			}
+			udpHeader.setPayload(table);
 			etherHeader.setSourceMACAddress(outIface.getMacAddress().toString());
 			this.sendPacket(etherHeader, outIface);
 		}
@@ -250,6 +259,7 @@ public class Router extends Device
 			sendSolicitedRipResponse(ipPacket.getDestinationAddress(), etherPacket.getDestinationMACAddress(), inIface);
 			return;
 		}
+		System.out.println("the source Ip address is "+ipPacket.getSourceAddress());
 
 		for(RIPv2Entry ripEntry : table.getEntries()) {
 			int destinationAddress = ripEntry.getAddress();
@@ -261,7 +271,7 @@ public class Router extends Device
 				this.routeTable.insert(destinationAddress, gatewayAddress, maskAddress, inIface, ripEntry.getMetric() + 1);
 				//sendSolicitedRipResponse(ipPacket.getDestinationAddress(), etherPacket.getDestinationMACAddress(), inIface);
 			}
-			else if (routeEntry.getMetric() < ripEntry.getMetric()){
+			else if (routeEntry.getMetric() > ripEntry.getMetric()){
 				this.routeTable.remove(routeEntry.getDestinationAddress(), routeEntry.getMaskAddress());
 				this.routeTable.insert(destinationAddress, gatewayAddress, maskAddress, inIface, ripEntry.getMetric() + 1);
 				//sendSolicitedRipResponse(ipPacket.getDestinationAddress(), etherPacket.getDestinationMACAddress(), inIface);
