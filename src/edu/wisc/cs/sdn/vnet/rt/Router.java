@@ -76,7 +76,7 @@ public class Router extends Device
 		}
 
 		// send init request
-		broadcastRipTable(-1, null);
+		sendRipRequest(RIPv2.COMMAND_REQUEST);
 
 		System.out.println(routeTable);
 
@@ -90,7 +90,7 @@ public class Router extends Device
 			catch (InterruptedException e)
 			{ return; }
 
-			broadcastRipTable(-1, null);
+			sendRipRequest(RIPv2.COMMAND_RESPONSE);
 		}).start();
 
 		// start thread
@@ -112,32 +112,22 @@ public class Router extends Device
 		}).start();
 	}
 
-	private void broadcastRipTable(int destIp, byte[] destMac) {
+	private void sendRipRequest(byte command) {
 		RIPv2 table = new RIPv2();
 		for(RouteEntry entry : this.routeTable.getEntries()) {
 			RIPv2Entry tableEntry = new RIPv2Entry(entry.getDestinationAddress(), entry.getMaskAddress(), entry.getMetric());
 			tableEntry.setNextHopAddress(entry.getInterface().getIpAddress()); // TODO maybe
 			table.addEntry(tableEntry);
 		}
+		table.setCommand(command);
 
 		// create headers
 		Ethernet etherHeader = new Ethernet();
 		etherHeader.setEtherType(Ethernet.TYPE_IPv4);
-
-		if(destMac == null){
-			etherHeader.setDestinationMACAddress("FF:FF:FF:FF:FF:FF");
-		}
-		else {
-			etherHeader.setDestinationMACAddress(destMac);
-		}
+		etherHeader.setDestinationMACAddress("FF:FF:FF:FF:FF:FF");
 
 		IPv4 ipHeader = new IPv4();
-		if(destIp == -1){
-			ipHeader.setDestinationAddress("224.0.0.9");
-		}
-		else {
-			ipHeader.setDestinationAddress(destIp);
-		}
+		ipHeader.setDestinationAddress("224.0.0.9");
 		ipHeader.setProtocol(IPv4.PROTOCOL_UDP);
 
 		UDP udpHeader = new UDP();
@@ -234,12 +224,12 @@ public class Router extends Device
 
 			if(routeEntry == null) {
 				this.routeTable.insert(destinationAddress, gatewayAddress, maskAddress, inIface, ripEntry.getMetric() + 1);
-				broadcastRipTable(ipPacket.getSourceAddress(), etherPacket.getSourceMACAddress());
+				sendRipRequest(ipPacket.getSourceAddress(), etherPacket.getSourceMACAddress());
 			}
 			else if (routeEntry.getMetric() < ripEntry.getMetric()){
 				this.routeTable.remove(routeEntry.getDestinationAddress(), routeEntry.getMaskAddress());
 				this.routeTable.insert(destinationAddress, gatewayAddress, maskAddress, inIface, ripEntry.getMetric() + 1);
-				broadcastRipTable(ipPacket.getSourceAddress(), etherPacket.getSourceMACAddress());
+				sendRipRequest(ipPacket.getSourceAddress(), etherPacket.getSourceMACAddress());
 			}
 			else {
 				routeEntry.resetTimestamp(); // TODO done by gage
