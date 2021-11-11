@@ -5,7 +5,7 @@ import edu.wisc.cs.sdn.vnet.DumpFile;
 import edu.wisc.cs.sdn.vnet.Iface;
 
 import net.floodlightcontroller.packet.*;
-
+import java.util.ArrayList;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -85,28 +85,38 @@ public class Router extends Device
 		new Thread(() -> {
 			// wait one second
 			System.out.println("send out rip requests");
-			try
-			{ Thread.sleep(10000); }
-			catch (InterruptedException e)
-			{ return; }
+			while(true) {
+				try {
+					Thread.sleep(10000);
+				} catch (InterruptedException e) {
+					return;
+				}
 
-			sendUnsolicitedRipResponse();
+				sendUnsolicitedRipResponse();
+			}
 		}).start();
 
 		// start thread
 		// timout
 		new Thread(() -> {
 			// wait one second
-			try
-			{ Thread.sleep(500); }
-			catch (InterruptedException e)
-			{ return; }
-
-			for(RouteEntry entry : this.routeTable.getEntries()) {
-				if(entry.getGatewayAddress() != 0) {
-					if((entry.getTimestamp() + 30000) <= System.currentTimeMillis()) {
-						this.routeTable.remove(entry.getDestinationAddress(), entry.getMaskAddress());
+			while(true) {
+				try {
+					Thread.sleep(500);
+				} catch (InterruptedException e) {
+					return;
+				}
+				ArrayList <RouteEntry> delete_entries = new ArrayList<>();
+				for (RouteEntry entry : this.routeTable.getEntries()) {
+					if (entry.getGatewayAddress() != 0) {
+						if ((entry.getTimestamp() + 30000) <= System.currentTimeMillis()) {
+//							this.routeTable.remove(entry.getDestinationAddress(), entry.getMaskAddress());
+							delete_entries.add(entry);
+						}
 					}
+				}
+				for(RouteEntry entry:delete_entries){
+					this.routeTable.remove(entry.getDestinationAddress(), entry.getMaskAddress());
 				}
 			}
 		}).start();
@@ -264,7 +274,7 @@ public class Router extends Device
 			int destinationAddress = ripEntry.getAddress();
 			int gatewayAddress = ripEntry.getNextHopAddress();
 			int maskAddress = ripEntry.getSubnetMask();
-			RouteEntry routeEntry = this.routeTable.find(ripEntry.getAddress(), ripEntry.getSubnetMask());
+			RouteEntry routeEntry = this.routeTable.lookup(ripEntry.getAddress());
 
 			if(routeEntry == null) {
 				this.routeTable.insert(destinationAddress, gatewayAddress, maskAddress, inIface, ripEntry.getMetric() + 1);
