@@ -76,7 +76,7 @@ public class Router extends Device
 		}
 
 		// send init request
-		sendRip(RIPv2.COMMAND_REQUEST);
+		sendRipRequest();
 
 		System.out.println(routeTable);
 
@@ -90,7 +90,7 @@ public class Router extends Device
 			catch (InterruptedException e)
 			{ return; }
 
-			sendRip(RIPv2.COMMAND_RESPONSE);
+			sendUnsolicitedRipResponse();
 		}).start();
 
 		// start thread
@@ -112,8 +112,16 @@ public class Router extends Device
 		}).start();
 	}
 
-	private void sendSolicitedRipResponse(int destIp, byte[] destMac) {
-		sendRip();
+	private void sendSolicitedRipResponse(int destIp, byte[] destMac, Iface outIface) {
+		sendRip(RIPv2.COMMAND_RESPONSE, destIp, destMac, outIface);
+	}
+
+	private void sendUnsolicitedRipResponse() {
+		sendRip(RIPv2.COMMAND_RESPONSE, -1, null, null);
+	}
+
+	private void sendRipRequest() {
+		sendRip(RIPv2.COMMAND_REQUEST, -1, null, null);
 	}
 
 
@@ -129,10 +137,21 @@ public class Router extends Device
 		// create headers
 		Ethernet etherHeader = new Ethernet();
 		etherHeader.setEtherType(Ethernet.TYPE_IPv4);
-		etherHeader.setDestinationMACAddress("FF:FF:FF:FF:FF:FF");
+
+		if(destIp != -1) {
+			etherHeader.setDestinationMACAddress(destMac);
+		}
+		else {
+			etherHeader.setDestinationMACAddress("FF:FF:FF:FF:FF:FF");
+		}
 
 		IPv4 ipHeader = new IPv4();
-		ipHeader.setDestinationAddress("224.0.0.9");
+		if(outIface != null) {
+			ipHeader.setDestinationAddress(destIp);
+		}
+		else {
+			ipHeader.setDestinationAddress("224.0.0.9");
+		}
 		ipHeader.setProtocol(IPv4.PROTOCOL_UDP);
 
 		UDP udpHeader = new UDP();
@@ -144,10 +163,16 @@ public class Router extends Device
 		ipHeader.setPayload(udpHeader);
 		udpHeader.setPayload(table);
 
-		// send tables to all ports
-		for(Iface iface :  this.getInterfaces().values()) {
-			etherHeader.setSourceMACAddress(iface.getMacAddress().toString());
-			this.sendPacket(etherHeader, iface);
+		if(outIface == null) {
+			// send tables to all ports
+			for(Iface iface :  this.getInterfaces().values()) {
+				etherHeader.setSourceMACAddress(iface.getMacAddress().toString());
+				this.sendPacket(etherHeader, iface);
+			}
+		}
+		else {
+			etherHeader.setSourceMACAddress(outIface.getMacAddress().toString());
+			this.sendPacket(etherHeader, outIface);
 		}
 	}
 
